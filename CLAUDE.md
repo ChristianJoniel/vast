@@ -1,3 +1,78 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Context
+
+This is a **Route Revenue Reconciliation Engine** — a technical assessment for Vast. The application processes nightly revenue files from gaming/vending machine operators, validates them against expected totals, and surfaces discrepancies. Financial accuracy is non-negotiable.
+
+## Commands
+
+```bash
+# Initial setup
+composer run setup
+
+# Development (runs server + queue + logs + vite concurrently)
+composer run dev
+
+# Run all tests
+php artisan test --compact
+
+# Run a single test file or filter
+php artisan test --compact --filter=RevenueImportTest
+
+# Lint PHP (auto-fix)
+vendor/bin/pint --dirty --format agent
+
+# Frontend
+npm run dev          # Vite dev server
+npm run build        # Production build
+npm run types:check  # TypeScript check
+npm run lint         # ESLint fix
+npm run format       # Prettier fix
+```
+
+Always run `vendor/bin/pint --dirty --format agent` after modifying PHP files.
+
+## Architecture
+
+**Stack:** Laravel 13 + Inertia.js v3 + Vue 3 (Composition API) + Tailwind CSS v4 + SQLite (dev)
+
+**Request flow:** Browser → Inertia (SPA) → Laravel controller → Eloquent → DB. API endpoints under `/api/` return JSON directly.
+
+**Frontend:** Vue pages live in `resources/js/pages/`. Layouts in `resources/js/layouts/`. Reusable components in `resources/js/components/`. Wayfinder auto-generates typed route functions into `resources/js/actions/` and `resources/js/routes/` — regenerate with `php artisan wayfinder:generate` after route changes.
+
+**Auth:** Handled by Laravel Fortify (see `app/Actions/Fortify/`). Routes split across `routes/web.php` and `routes/settings.php`.
+
+## Revenue Domain
+
+The core domain to build for this assignment:
+
+**Required endpoints (no auth):**
+- `POST /api/revenue/import` — accepts `sample_import.json` structure, upserts locations, processes records idempotently
+- `GET /api/revenue/reconcile` — compares imported totals against expected totals, surfaces discrepancies
+- `GET /api/revenue/dashboard` — aggregated revenue with date/location filters (optional)
+
+**Sample data files** (root of repo):
+- `sample_import.json` — 14 revenue records across 5 locations, 2 dates, 5 machines
+- `expected_totals.json` — LOC-002 on 2026-03-01 has an intentional $79 discrepancy for reconciliation testing
+
+**Idempotency key:** `(machine_id, report_date)` — a unique DB constraint on this pair prevents duplicate records. Importing the same payload twice must produce identical state.
+
+**Import response shape:**
+```json
+{ "imported": 10, "updated": 2, "skipped": 1, "errors": [] }
+```
+
+## Testing
+
+Write at least one Pest test proving idempotency: POST the same payload twice and assert record counts don't double. Use `RefreshDatabase` and factories.
+
+```bash
+php artisan make:test --pest RevenueImportTest
+php artisan test --compact --filter=RevenueImportTest
+```
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
