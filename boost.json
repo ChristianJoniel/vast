@@ -2,7 +2,7 @@
     "agents": [
         "cursor",
         "claude_code",
-        "opencode"
+        "codex"
     ],
     "cloud": false,
     "guidelines": true,
