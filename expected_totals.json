@@ -1,0 +1,65 @@
+{
+  "_description": "Expected daily revenue totals by location. Use this to test your reconciliation logic. Note: LOC-002 on 2026-03-01 has been intentionally set to a mismatched value to create a discrepancy for testing.",
+  "expected_totals": [
+    {
+      "location_id": "LOC-001",
+      "report_date": "2026-03-01",
+      "expected_net_revenue": 1665.25,
+      "notes": "2 machines: VGT-1001 ($965.50) + VGT-1002 ($699.75)"
+    },
+    {
+      "location_id": "LOC-001",
+      "report_date": "2026-03-02",
+      "expected_net_revenue": 1555.00,
+      "notes": "2 machines: VGT-1001 ($821.50) + VGT-1002 ($733.50)"
+    },
+    {
+      "location_id": "LOC-002",
+      "report_date": "2026-03-01",
+      "expected_net_revenue": 3100.00,
+      "notes": "INTENTIONAL MISMATCH — actual imported total is $3,021.00. Use this to verify your reconciliation flags discrepancies."
+    },
+    {
+      "location_id": "LOC-002",
+      "report_date": "2026-03-02",
+      "expected_net_revenue": 2670.50,
+      "notes": "2 machines: VGT-2001 ($1,535.00) + VGT-2002 ($1,135.50)"
+    },
+    {
+      "location_id": "LOC-003",
+      "report_date": "2026-03-01",
+      "expected_net_revenue": 430.50,
+      "notes": "1 machine: VGT-3001"
+    },
+    {
+      "location_id": "LOC-003",
+      "report_date": "2026-03-02",
+      "expected_net_revenue": 493.75,
+      "notes": "1 machine: VGT-3001"
+    },
+    {
+      "location_id": "LOC-004",
+      "report_date": "2026-03-01",
+      "expected_net_revenue": 2634.50,
+      "notes": "1 machine: VGT-4001"
+    },
+    {
+      "location_id": "LOC-004",
+      "report_date": "2026-03-02",
+      "expected_net_revenue": 2370.25,
+      "notes": "1 machine: VGT-4001"
+    },
+    {
+      "location_id": "LOC-005",
+      "report_date": "2026-03-01",
+      "expected_net_revenue": 339.50,
+      "notes": "1 machine: VGT-5001"
+    },
+    {
+      "location_id": "LOC-005",
+      "report_date": "2026-03-02",
+      "expected_net_revenue": 321.75,
+      "notes": "1 machine: VGT-5001"
+    }
+  ]
+}
