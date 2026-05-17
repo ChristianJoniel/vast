@@ -48,7 +48,7 @@ class RevenueImportBatchFactory extends Factory
             ];
 
             return [
-                'status' => BatchStatus::Committed,
+                'status' => BatchStatus::COMMITTED,
                 ...$defaults,
                 ...$counts,
             ];
@@ -61,7 +61,7 @@ class RevenueImportBatchFactory extends Factory
     public function rejected(array $errors = []): static
     {
         return $this->state(fn () => [
-            'status' => BatchStatus::Rejected,
+            'status' => BatchStatus::REJECTED,
             'imported_count' => 0,
             'updated_count' => 0,
             'skipped_count' => 0,
