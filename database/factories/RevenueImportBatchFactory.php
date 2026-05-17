@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Models\RevenueImportBatch;
 use App\Enums\BatchStatus;
+use App\Models\RevenueImportBatch;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -60,7 +60,7 @@ class RevenueImportBatchFactory extends Factory
      */
     public function rejected(array $errors = []): static
     {
-        return $this->state(fn() => [
+        return $this->state(fn () => [
             'status' => BatchStatus::Rejected,
             'imported_count' => 0,
             'updated_count' => 0,
@@ -78,7 +78,7 @@ class RevenueImportBatchFactory extends Factory
      */
     public function forPayload(array $payload): static
     {
-        return $this->state(fn() => [
+        return $this->state(fn () => [
             'payload_hash' => hash('sha256', json_encode(
                 $payload,
                 JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
@@ -93,7 +93,7 @@ class RevenueImportBatchFactory extends Factory
     public function withCounts(int $imported = 0, int $updated = 0, int $skipped = 0, int $newMachines =
     0): static
     {
-        return $this->state(fn() => [
+        return $this->state(fn () => [
             'imported_count' => $imported,
             'updated_count' => $updated,
             'skipped_count' => $skipped,

@@ -3,10 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\Location;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use App\Services\SampleData;
 use App\Models\Machine;
+use App\Services\SampleData;
+use Illuminate\Database\Seeder;
 
 class MachineSeeder extends Seeder
 {

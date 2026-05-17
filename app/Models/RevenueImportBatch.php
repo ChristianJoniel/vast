@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\BatchStatus;
+use Database\Factories\RevenueImportBatchFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Enums\BatchStatus;
 
 class RevenueImportBatch extends Model
 {
-    /** @use HasFactory<\Database\Factories\RevenueImportBatchFactory> */
+    /** @use HasFactory<RevenueImportBatchFactory> */
     use HasFactory;
 
     /**

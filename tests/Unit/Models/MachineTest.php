@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Models\Machine;
 use App\Models\Location;
+use App\Models\Machine;
 
 test('to array', function () {
     $machine = Machine::factory()->create()->fresh();
