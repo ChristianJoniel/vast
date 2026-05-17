@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Location;
+use App\Models\Machine;
 use Illuminate\Support\Collection;
 
 class SampleData
@@ -32,15 +33,16 @@ class SampleData
             });
     }
 
-    // public function getMachines(): Collection
-    // {
-    //     return $this->data
-    //         ->unique('machine_id')
-    //         ->values()
-    //         ->map(function (array $item): Machine {
-    //             return new Machine([
-    //                 'code' => $item['machine_id'],
-    //             ]);
-    //         });
-    // }
+    public function getMachines(): Collection
+    {
+        return $this->data
+            ->unique('machine_id')
+            ->values()
+            ->map(function (array $item): Machine {
+                return new Machine([
+                    'code' => $item['machine_id'],
+                    'location_id' => $item['location_id'],
+                ]);
+            });
+    }
 }
