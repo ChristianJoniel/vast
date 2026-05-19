@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Location;
 use App\Models\Machine;
+use App\Models\RevenueRecord;
 
 test('to array', function () {
     $machine = Machine::factory()->create()->fresh();
@@ -24,12 +25,12 @@ it('belongs to location', function () {
     expect($machine->location)->toBeInstanceOf(Location::class);
 });
 
-// it('may have todos', function () {
-//     $user = User::factory()->create();
+it('has many revenue records', function () {
+    $machine = Machine::factory()->create();
 
-//     Todo::factory()->count(3)->create([
-//         'user_id' => $user->id,
-//     ]);
+    RevenueRecord::factory()->count(3)->create([
+        'machine_id' => $machine->id,
+    ]);
 
-//     expect($user->todos)->toHaveCount(3);
-// });
+    expect($machine->revenueRecords)->toHaveCount(3);
+});

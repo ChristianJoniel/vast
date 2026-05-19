@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\RevenueImportBatch;
+use App\Models\RevenueRecord;
 
 test('to array', function () {
     $revenueImportBatch = RevenueImportBatch::factory()->create()->fresh();
@@ -23,18 +24,10 @@ test('to array', function () {
         ]);
 });
 
-// it('belongs to location', function () {
-//     $machine = Machine::factory()->create()->fresh();
+it('has many revenue records', function () {
+    $batch = RevenueImportBatch::factory()->create();
 
-//     expect($machine->location)->toBeInstanceOf(Location::class);
-// });
+    RevenueRecord::factory()->count(3)->fromBatch($batch)->create();
 
-// it('may have todos', function () {
-//     $user = User::factory()->create();
-
-//     Todo::factory()->count(3)->create([
-//         'user_id' => $user->id,
-//     ]);
-
-//     expect($user->todos)->toHaveCount(3);
-// });
+    expect($batch->revenueRecords)->toHaveCount(3);
+});

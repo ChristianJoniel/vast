@@ -6,6 +6,7 @@ use App\Enums\BatchStatus;
 use Database\Factories\RevenueImportBatchFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RevenueImportBatch extends Model
 {
@@ -23,5 +24,15 @@ class RevenueImportBatch extends Model
             'status' => BatchStatus::class,
             'error_payload' => 'array',
         ];
+    }
+
+    /**
+     * The revenue records written by this import batch.
+     *
+     * @return HasMany<RevenueRecord, $this>
+     */
+    public function revenueRecords(): HasMany
+    {
+        return $this->hasMany(RevenueRecord::class, 'source_batch_id');
     }
 }
