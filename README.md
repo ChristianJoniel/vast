@@ -32,11 +32,15 @@ php artisan db:seed
 # Frontend assets (dev mode reloads on save)
 npm install && npm run dev
 
-# Run the test suite (65 tests, ~1.5s)
+# Serve the app (in a separate terminal)
+php artisan serve
+# → Server running on http://127.0.0.1:8000
+
+# Run the test suite (66 tests, ~1.5s)
 php artisan test --compact
 ```
 
-The app is served by [Laravel Herd](https://herd.laravel.com/) at **`http://vast.test`** in local development. Adjust the curl examples below if your local URL differs.
+The examples below assume **`http://127.0.0.1:8000`** (the default `php artisan serve` address). If you use [Laravel Herd](https://herd.laravel.com/) instead, the app is reachable at `http://vast.test` — substitute that host in the curl commands.
 
 **Dashboard login** (auth-gated): `test@example.com` / `password` (created by `DatabaseSeeder`).
 
@@ -47,7 +51,7 @@ The app is served by [Laravel Herd](https://herd.laravel.com/) at **`http://vast
 php artisan migrate:fresh
 
 # Import the 14-row sample
-curl -sS -X POST http://vast.test/api/revenue/import \
+curl -sS -X POST http://127.0.0.1:8000/api/revenue/import \
   -H 'Content-Type: application/json' \
   --data @sample_import.json
 # → {"imported":14,"updated":0,"skipped":0,"errors":[]}
@@ -56,15 +60,15 @@ curl -sS -X POST http://vast.test/api/revenue/import \
 php artisan db:seed --class=ExpectedTotalSeeder
 
 # Reconcile
-curl -sS http://vast.test/api/revenue/reconcile | python3 -m json.tool
+curl -sS http://127.0.0.1:8000/api/revenue/reconcile | python3 -m json.tool
 # → 10 rows; LOC-002 / 2026-03-01 shows status: "mismatch", diff: "-79.00"
 
 # Dashboard (aggregated KPIs + per-location daily + full reconciliation in one payload)
-curl -sS http://vast.test/api/revenue/dashboard | python3 -m json.tool
+curl -sS http://127.0.0.1:8000/api/revenue/dashboard | python3 -m json.tool
 # → { totals: {...}, daily_by_location: [...], reconciliation: [...] }
 ```
 
-For the visual dashboard, sign in at `http://vast.test` with `test@example.com` / `password` and navigate to `/dashboard`.
+For the visual dashboard, sign in at `http://127.0.0.1:8000` with `test@example.com` / `password` and navigate to `/dashboard`.
 
 ---
 
@@ -221,7 +225,7 @@ The hash is a best-effort fast path — semantically equivalent payloads with re
 ## Testing
 
 ```bash
-php artisan test --compact            # all 65 tests
+php artisan test --compact            # all 66 tests
 php artisan test --compact --filter=ImportRevenueTest
 php artisan test --compact --filter=ReconcileRevenueTest
 php artisan test --compact --filter=RevenueDashboardTest
