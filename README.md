@@ -218,6 +218,8 @@ The hash is a best-effort fast path — semantically equivalent payloads with re
 
 **`net_revenue` is persisted verbatim** even when it disagrees with `cash_in + voucher_in - voucher_out`. Silent recomputation would destroy the audit trail of what the partner actually claimed. Discrepancies surface in reconciliation, not at ingest.
 
+**Scale by scheduling, not by schema.** The same data model carries from today's 200 locations to the assignment's 12-month target of 1,000+. The load-bearing decisions — `UNIQUE (machine_id, report_date)`, `decimal(12,2)`, `source_batch_id` audit trail — don't get bigger when partner count grows. What evolves is *how* work is scheduled (sync `POST` → queued job) and *where* reads land (writer DB → read replica). Speculative scaling abstractions (materialized rollups, partitioning, async ingestion) are deferred until measurement justifies them. Design doc §5 has the full trigger table.
+
 **Machine relocation is a documented sharp edge.** The MVP silently overwrites `machines.location_id` when a partner reports a known machine at a different location. Three defensible policies (authoritative-overwrite / flag-and-quarantine / reject-on-conflict) are spelled out in the design doc §1; picking among them is a product call, not a code call.
 
 ---
