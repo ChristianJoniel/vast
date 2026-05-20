@@ -23,6 +23,10 @@ class ImportRevenuePayload
      *         a real revision from a no-op replay.
      *  - Hash: a byte-identical replay (same payload bytes → same SHA-256) short-circuits
      *         the pipeline and returns the cached summary from a prior COMMITTED batch.
+     *         The short-circuit additionally verifies that every record that batch wrote
+     *         still has source_batch_id pointing at it — otherwise a later import has
+     *         overwritten the cached batch's rows and the cached counts no longer describe
+     *         current DB state, so the replay must fall through to the per-row path.
      *         Best-effort fast path only — semantically equivalent payloads with reordered
      *         keys or different decimal precision (965.5 vs 965.50) will miss this check
      *         and fall through to the per-row updateOrCreate / DB layer.
@@ -63,7 +67,7 @@ class ImportRevenuePayload
             ->where('status', BatchStatus::COMMITTED)
             ->first();
 
-        if ($cached) {
+        if ($cached && $this->cachedBatchIsIntact($cached)) {
             return [
                 'imported' => $cached->imported_count,
                 'updated' => $cached->updated_count,
@@ -142,5 +146,16 @@ class ImportRevenuePayload
                 'errors' => [],
             ];
         });
+    }
+
+    /**
+     * The cache short-circuit is only safe when every record this batch wrote still
+     * attributes back to it. updateOrCreate sets source_batch_id on every row it
+     * touches, so a later import that mutated even one record from this batch would
+     * have changed that record's source_batch_id — making the cached counters stale.
+     */
+    private function cachedBatchIsIntact(RevenueImportBatch $batch): bool
+    {
+        return RevenueRecord::where('source_batch_id', $batch->id)->count() === $batch->record_count;
     }
 }
