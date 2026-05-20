@@ -120,6 +120,13 @@ The defensible behaviors are a product call, not a code call:
 
 Picking among these depends on how partners actually communicate physical machine moves (out-of-band ticket? next-day payload? never?) — a question for product, not for the importer. The schema already supports any of the three; only the Action's upsert branch needs to change.
 
+The downstream consequence shows up at **reconciliation** time: the reconcile query joins `revenue_records → machines → locations` via the machine's *current* `location_id`. A relocated machine retroactively re-attributes its historical revenue to the new location — wrong in a strict accounting sense, because the revenue was physically earned at the prior site. Two fixes available, both post-MVP:
+
+- **Denormalize `location_id` onto `revenue_records` at write time** — the importer stamps the machine's location as of `report_date` directly on each fact row. Reconcile then joins on that stable column, immune to subsequent moves.
+- **Maintain a `machine_movements` audit table** — `(machine_id, location_id, effective_from, effective_to)` history; reconcile resolves the location per record at query time.
+
+Both are gated on whether physical machine moves are a real product event in the first place. The MVP joins through `machines.location_id` and accepts the retroactive-attribution behavior as the documented contract.
+
 ### Money handling
 
 - All monetary columns are `decimal(12, 2)`. No floats anywhere — not in the DB, not in PHP arithmetic, not in API responses (serialize as strings if the consumer is JS-native).
@@ -176,23 +183,27 @@ Expected totals are **data, not config** — operators revise baselines without 
 }
 ```
 
-**Single SQL** does the work — no per-row loops in PHP:
+**Single SQL** does the work — no per-row loops in PHP. Because `revenue_records` carries `machine_id` (not a denormalized `location_id`), the JOIN goes through `machines`:
 
 ```sql
 SELECT
-  e.location_id,
+  l.code                 AS location_id,
   e.report_date,
   e.expected_net_revenue AS expected,
-  COALESCE(SUM(r.net_revenue), 0) AS actual,
-  COALESCE(SUM(r.net_revenue), 0) - e.expected_net_revenue AS diff
+  SUM(r.net_revenue)     AS actual,
+  COUNT(r.id)            AS record_count
 FROM expected_totals e
+JOIN locations l         ON l.id = e.location_id
+LEFT JOIN machines m     ON m.location_id = e.location_id
 LEFT JOIN revenue_records r
-  ON r.location_id = e.location_id
- AND r.report_date  = e.report_date
-GROUP BY e.location_id, e.report_date, e.expected_net_revenue;
+  ON r.machine_id = m.id
+ AND r.report_date = e.report_date
+GROUP BY l.code, e.report_date, e.expected_net_revenue;
 ```
 
-`status` is derived in PHP with a configurable **tolerance** (default `$0.00` — exact match for financial data; can be loosened per-tenant later). `LEFT JOIN` ensures locations with expectations but no imports surface as `missing_actual` rather than being silently absent. A symmetric query (or `FULL OUTER` simulated via `UNION`) catches the inverse: imports with no expected baseline → `missing_expected`. Both are signals operators care about.
+`status` is derived in PHP with `bcmath` arithmetic (decimal strings, never floats) and a configurable **tolerance** (default `$0.00` — exact match for financial data; can be loosened per-tenant later). `SUM(r.net_revenue)` is intentionally not wrapped in `COALESCE` so `NULL` cleanly distinguishes "no records exist" (`missing_actual`) from "records sum to zero" (`match` if expected is also zero). A symmetric query (or `FULL OUTER` simulated via `UNION ALL`) catches the inverse: imports with no expected baseline → `missing_expected`. Both are signals operators care about.
+
+One assumption is baked into this JOIN: it resolves a machine's location to its *current* `location_id`, not the location at `report_date`. See §1's "Machine relocation" note — a machine that physically moves retroactively re-attributes its historical revenue at reconcile time. Fixing that is a post-MVP migration gated on whether relocation is a real product event.
 
 ### Why this shape
 

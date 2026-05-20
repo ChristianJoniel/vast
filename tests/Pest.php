@@ -44,7 +44,12 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * The 14-row revenue import payload shipped as the assessment fixture.
+ *
+ * @return list<array<string, mixed>>
+ */
+function samplePayload(): array
 {
-    // ..
+    return json_decode(file_get_contents(base_path('sample_import.json')), true);
 }

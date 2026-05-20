@@ -8,11 +8,6 @@ use App\Models\Machine;
 use App\Models\RevenueImportBatch;
 use App\Models\RevenueRecord;
 
-function samplePayload(): array
-{
-    return json_decode(file_get_contents(base_path('sample_import.json')), true);
-}
-
 it('imports a fresh payload and persists locations, machines, records, and a committed batch', function () {
     $payload = samplePayload();
 
