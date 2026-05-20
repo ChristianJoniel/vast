@@ -28,7 +28,7 @@ class ExpectedTotal extends Model
     protected function casts(): array
     {
         return [
-            'report_date' => 'date',
+            'report_date' => 'date:Y-m-d',
             'expected_net_revenue' => 'decimal:2',
         ];
     }

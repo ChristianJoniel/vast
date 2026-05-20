@@ -108,6 +108,18 @@ Modeling machines as first-class entities — rather than letting `machine_id` l
 
 For the MVP, new machines are **upserted on first sight** during import (same pattern as locations) and surfaced on the batch record for operator review. Tightening the policy to "machines must be pre-registered, unknown codes reject the row" is a one-line change later if partners are expected to register hardware out-of-band.
 
+#### Machine relocation — a known sharp edge
+
+The MVP also **silently overwrites `machines.location_id`** when a partner payload reports a known machine code at a different location than we previously saw. This is the simplest behavior — partner data is treated as authoritative for dimension attributes — but it has a real failure mode: a typo in `location_id` on a single row will silently reparent a machine and quietly contaminate future location-level reconciliation rollups.
+
+The defensible behaviors are a product call, not a code call:
+
+- **Authoritative-overwrite (current MVP)** — fastest, smallest code, assumes partner systems are correct.
+- **Flag-and-quarantine** — detect that `machine.location_id` changed, write the new fact, but raise a relocation event on the batch (or a separate `machine_movements` audit table) for operator review before subsequent reports are trusted.
+- **Reject-on-conflict** — refuse the row if the (machine, location) pairing changed; require an explicit "relocate machine" admin action.
+
+Picking among these depends on how partners actually communicate physical machine moves (out-of-band ticket? next-day payload? never?) — a question for product, not for the importer. The schema already supports any of the three; only the Action's upsert branch needs to change.
+
 ### Money handling
 
 - All monetary columns are `decimal(12, 2)`. No floats anywhere — not in the DB, not in PHP arithmetic, not in API responses (serialize as strings if the consumer is JS-native).
@@ -271,6 +283,7 @@ What I'd avoid:
 - **RBAC + immutable audit log** — once operator headcount grows, every mutation needs a `who/when/why`. The `source_batch_id` trail is the foundation, but doesn't yet record *which user* triggered the batch.
 - **OpenAPI surface** — assignment-required eventually; cheap to add once endpoints stabilize.
 - **Scheduled reconciliation runs** — push, don't pull. Operators get alerted on mismatches instead of having to remember to check.
+- **Machine relocation policy** — see §1, "Machine relocation — a known sharp edge." MVP silently absorbs `machine.location_id` changes from partner payloads; product needs to decide whether physical machine moves should require an explicit admin action or stay implicit.
 
 ---
 

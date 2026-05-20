@@ -14,6 +14,20 @@ class RevenueImportBatch extends Model
     use HasFactory;
 
     /**
+     * @var list<string>
+     */
+    protected $fillable = [
+        'payload_hash',
+        'status',
+        'record_count',
+        'imported_count',
+        'updated_count',
+        'skipped_count',
+        'new_machines_count',
+        'error_payload',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

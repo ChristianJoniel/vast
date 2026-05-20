@@ -31,7 +31,7 @@ class RevenueRecord extends Model
     protected function casts(): array
     {
         return [
-            'report_date' => 'date',
+            'report_date' => 'date:Y-m-d',
             'cash_in' => 'decimal:2',
             'voucher_in' => 'decimal:2',
             'voucher_out' => 'decimal:2',

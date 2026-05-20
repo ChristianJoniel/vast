@@ -14,6 +14,14 @@ class Machine extends Model
     use HasFactory;
 
     /**
+     * @var list<string>
+     */
+    protected $fillable = [
+        'code',
+        'location_id',
+    ];
+
+    /**
      * The location that the machine belongs to.
      *
      * @return BelongsTo<Location, $this>

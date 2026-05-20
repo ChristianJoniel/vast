@@ -32,9 +32,13 @@ it('has many machines', function () {
 it('has many expected totals', function () {
     $location = Location::factory()->create();
 
-    ExpectedTotal::factory()->count(2)->create([
-        'location_id' => $location->id,
-    ]);
+    ExpectedTotal::factory()
+        ->count(2)
+        ->sequence(
+            ['report_date' => '2026-03-01'],
+            ['report_date' => '2026-03-02'],
+        )
+        ->create(['location_id' => $location->id]);
 
     expect($location->expectedTotals)->toHaveCount(2);
 });
