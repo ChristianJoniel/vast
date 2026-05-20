@@ -63,7 +63,7 @@ class ImportRevenuePayload
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         ));
 
-        $cached = RevenueImportBatch::where('payload_hash', $hash)
+        $cached = RevenueImportBatch::query()->where('payload_hash', $hash)
             ->where('status', BatchStatus::COMMITTED)
             ->first();
 
@@ -156,6 +156,6 @@ class ImportRevenuePayload
      */
     private function cachedBatchIsIntact(RevenueImportBatch $batch): bool
     {
-        return RevenueRecord::where('source_batch_id', $batch->id)->count() === $batch->record_count;
+        return RevenueRecord::query()->where('source_batch_id', $batch->id)->count() === $batch->record_count;
     }
 }

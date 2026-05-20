@@ -2,7 +2,7 @@
 
 A Laravel implementation of the Vast Staff Software Engineer technical assessment. Processes nightly per-machine revenue payloads from location partners, persists them idempotently, and reconciles imported totals against operator-supplied expected baselines.
 
-The full architectural rationale lives in [`OpusDesignDocument.md`](./OpusDesignDocument.md) (Part A). This README covers what's running and how to verify it.
+The full architectural rationale lives in [`DesignDocument.md`](./DesignDocument.md) (Part A). This README covers what's running and how to verify it.
 
 ---
 

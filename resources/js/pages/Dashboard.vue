@@ -1,14 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import { VisAxis, VisGroupedBar, VisXYContainer } from '@unovis/vue';
-import {
-    ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
-    componentToString,
-    type ChartConfig,
-} from '@/components/ui/chart';
+import { computed } from 'vue';
 import {
     Card,
     CardContent,
@@ -16,6 +9,14 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+    componentToString
+    
+} from '@/components/ui/chart';
+import type {ChartConfig} from '@/components/ui/chart';
 import { dashboard } from '@/routes';
 
 interface ReconciliationRow {
@@ -80,10 +81,12 @@ type LocationTotalRow = { location: string; total: number };
 
 const totalByLocation = computed<LocationTotalRow[]>(() => {
     const byLoc: Record<string, number> = {};
+
     for (const row of props.revenueData.daily_by_location) {
         byLoc[row.location_id] =
             (byLoc[row.location_id] ?? 0) + Number(row.net_revenue);
     }
+
     return Object.entries(byLoc)
         .map(([location, total]) => ({ location, total }))
         .sort((a, b) => a.location.localeCompare(b.location));
@@ -96,6 +99,7 @@ const totalConfig = {
 // --- Formatters ---
 const formatMoney = (s: string): string => {
     const n = Number(s);
+
     return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
@@ -166,14 +170,8 @@ const diffClass = computed(() =>
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <ChartContainer
-                    :config="reconConfig"
-                    class="h-[360px] w-full"
-                >
-                    <VisXYContainer
-                        :data="reconChartData"
-                        :height="320"
-                    >
+                <ChartContainer :config="reconConfig" class="h-[360px] w-full">
+                    <VisXYContainer :data="reconChartData" :height="320">
                         <VisGroupedBar
                             :x="(_d: ReconChartRow, i: number) => i"
                             :y="[
@@ -188,8 +186,7 @@ const diffClass = computed(() =>
                         <VisAxis
                             type="x"
                             :tick-format="
-                                (i: number) =>
-                                    reconChartData[i]?.label ?? ''
+                                (i: number) => reconChartData[i]?.label ?? ''
                             "
                             :num-ticks="reconChartData.length"
                             :tick-line="false"
@@ -226,14 +223,8 @@ const diffClass = computed(() =>
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <ChartContainer
-                    :config="totalConfig"
-                    class="h-[300px] w-full"
-                >
-                    <VisXYContainer
-                        :data="totalByLocation"
-                        :height="260"
-                    >
+                <ChartContainer :config="totalConfig" class="h-[300px] w-full">
+                    <VisXYContainer :data="totalByLocation" :height="260">
                         <VisGroupedBar
                             :x="(_d: LocationTotalRow, i: number) => i"
                             :y="[(d: LocationTotalRow) => d.total]"

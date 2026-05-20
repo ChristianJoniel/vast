@@ -32,7 +32,7 @@ Three tables. Small surface area, hard guarantees in the DB.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `bigint PK` | Surrogate |
-| `location_id` | `varchar` **UNIQUE** | Partner-supplied business key (`"LOC-001"`) |
+| `code` | `varchar` **UNIQUE** | Partner-supplied business key (`"LOC-001"`) |
 | `name` | `varchar` | Upserted on each import (partners can rename) |
 | `created_at` / `updated_at` | timestamps | |
 
@@ -43,11 +43,9 @@ A machine is a first-class entity so that revenue facts can only attach to hardw
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `bigint PK` | Surrogate |
-| `location_id` | `bigint FK → locations.id` | Machine's home location at registration time. |
-| `machine_code` | `varchar` | Partner-supplied identifier (`"VGT-1001"`). |
+| `location_id` | `bigint FK → locations.id` | Machine's current location. Upserted on every import — see "Machine relocation" below. |
+| `code` | `varchar` **UNIQUE** | Partner-supplied identifier (`"VGT-1001"`). Globally unique across the operator network — a machine retains its identity if it physically moves between locations. |
 | `created_at` / `updated_at` | timestamps | |
-
-**Constraint:** `UNIQUE (location_id, machine_code)` — partner machine codes are unique within a location.
 
 ### `revenue_records` (the fact table)
 
@@ -56,18 +54,16 @@ One row per **(machine, calendar day)** — the natural grain of the feed.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `bigint PK` | Surrogate |
-| `location_id` | `bigint FK → locations.id` | Denormalized for reconciliation rollups; captures where the machine was on `report_date`. |
-| `machine_id` | `bigint FK → machines.id` | FK enforces that the machine exists before any revenue can be booked against it. |
+| `machine_id` | `bigint FK → machines.id` | FK enforces that the machine exists before any revenue can be booked against it. The location is resolved through `machines.location_id` (see relocation note for the trade-off). |
 | `report_date` | `date` | Day-grain; partner timezone normalized to a single canonical TZ at ingest. |
 | `cash_in`, `voucher_in`, `voucher_out`, `net_revenue` | `decimal(12, 2)` | **Never floats.** See "Money handling" below. |
-| `source_batch_id` | `bigint FK → revenue_import_batches.id`, nullable | Traceability back to the import that wrote this row. |
+| `source_batch_id` | `bigint FK → revenue_import_batches.id`, nullable | Traceability back to the import that wrote this row. Also load-bearing for the Layer 3 cache-integrity check — see §2. |
 | `created_at` / `updated_at` | timestamps | |
 
 **Constraints & indexes:**
 
-- **`UNIQUE (machine_id, report_date)`** — the **idempotency key**. This is the single most important constraint in the schema.
-- `INDEX (location_id, report_date)` — reconciliation rollups, dashboard date-range queries.
-- `INDEX (report_date)` — global daily aggregates.
+- **`UNIQUE (machine_id, report_date)`** — the **idempotency key**. This is the single most important constraint in the schema and the only one shipped on this table.
+- Supporting indexes — `(report_date)` for daily aggregates and a composite for dashboard date-range queries — are noted in §5 as "add when query latency demands it." MVP scale (200 locations × ~5 machines × 1 file/day) doesn't justify them yet.
 
 ### `expected_totals`
 
@@ -158,7 +154,9 @@ Why not a bulk `INSERT ... ON DUPLICATE KEY UPDATE`? It's faster but loses the i
 
 ### Layer 3 — Batch dedup (optimization)
 
-Compute `SHA-256` of the canonical payload. If `revenue_import_batches.payload_hash` already exists with status `committed`, return the stored summary without touching `revenue_records` at all. This is the cheap win for the common "partner clicked submit twice" case.
+Compute `SHA-256` of the canonical payload. If `revenue_import_batches.payload_hash` already exists with status `committed` **and** every record that batch wrote still attributes back to it (`source_batch_id` count matches `record_count`), return the stored summary without touching `revenue_records` at all. This is the cheap win for the common "partner clicked submit twice" case.
+
+The state-integrity check matters because `updateOrCreate` resets `source_batch_id` on every row it touches. A later import that mutated even one record from the cached batch would have changed that record's `source_batch_id` — invalidating the cached counters' claim about current DB state. Without the check, replaying the original payload after a corrective edit would silently return stale counts and skip the work needed to restore the cached state. With it, the cache safely falls through to the per-row path. The fast path stays correct; the safety net stays load-bearing.
 
 ### What about cell-level edits (same payload, corrected `net_revenue`)?
 
