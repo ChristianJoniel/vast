@@ -13,7 +13,7 @@ The full architectural rationale lives in [`OpusDesignDocument.md`](./OpusDesign
 - **Testing:** Pest 4
 - **Linting:** Laravel Pint
 
-The repo also ships an Inertia + Vue 3 + Tailwind v4 frontend scaffold (Laravel default), but no UI was built for this assessment — see "What's Built" below.
+Frontend: Inertia.js v3 + Vue 3 (Composition API) + Tailwind CSS v4. A real dashboard page at `/dashboard` (auth-gated) renders the revenue and reconciliation data via shadcn-vue charts (Unovis under the hood).
 
 ---
 
@@ -26,14 +26,19 @@ cp .env.example .env
 php artisan key:generate
 php artisan migrate:fresh
 
-# Optional: seed locations, machines, and expected_totals from the fixtures
+# Optional: seed locations, machines, expected_totals, and a test user
 php artisan db:seed
 
-# Run the test suite (62 tests, ~1.5s)
+# Frontend assets (dev mode reloads on save)
+npm install && npm run dev
+
+# Run the test suite (65 tests, ~1.5s)
 php artisan test --compact
 ```
 
 The app is served by [Laravel Herd](https://herd.laravel.com/) at **`http://vast.test`** in local development. Adjust the curl examples below if your local URL differs.
+
+**Dashboard login** (auth-gated): `test@example.com` / `password` (created by `DatabaseSeeder`).
 
 ### Smoke test the endpoints
 
@@ -53,7 +58,13 @@ php artisan db:seed --class=ExpectedTotalSeeder
 # Reconcile
 curl -sS http://vast.test/api/revenue/reconcile | python3 -m json.tool
 # → 10 rows; LOC-002 / 2026-03-01 shows status: "mismatch", diff: "-79.00"
+
+# Dashboard (aggregated KPIs + per-location daily + full reconciliation in one payload)
+curl -sS http://vast.test/api/revenue/dashboard | python3 -m json.tool
+# → { totals: {...}, daily_by_location: [...], reconciliation: [...] }
 ```
+
+For the visual dashboard, sign in at `http://vast.test` with `test@example.com` / `password` and navigate to `/dashboard`.
 
 ---
 
@@ -64,12 +75,9 @@ Assignment requirements:
 - **`POST /api/revenue/import`** — validates, upserts locations/machines/records, returns the required `{ imported, updated, skipped, errors }` summary.
 - **Idempotency** — DB unique constraint + app-level `updateOrCreate` with `wasChanged` discrimination + SHA-256 payload-hash short-circuit for replays.
 - **At least one Pest test proving idempotency** — actually 3 tests in `tests/Feature/Revenue/ImportRevenueTest.php` (fresh, idempotent replay, money-field update vs skip).
-- **`GET /api/revenue/reconcile`** *(optional #1, implemented)* — surfaces the intentional `LOC-002 / 2026-03-01` $79 mismatch from `expected_totals.json`. Covered by 4 Pest tests including `missing_actual` / `missing_expected` edge cases.
-
-Deferred:
-
-- **`GET /api/revenue/dashboard`** *(optional #2)* — not built; partial-credit reconcile data is already exposable via `GET /api/revenue/reconcile`.
-- **Vue frontend** *(optional #3)* — not built; the assignment explicitly deprioritizes UI ("don't build optional items at the expense of a solid import pipeline").
+- **`GET /api/revenue/reconcile`** *(optional #1)* — surfaces the intentional `LOC-002 / 2026-03-01` $79 mismatch from `expected_totals.json`. Covered by 4 Pest tests including `missing_actual` / `missing_expected` edge cases.
+- **`GET /api/revenue/dashboard`** *(optional #2)* — aggregated KPI totals + per-location daily revenue + full reconciliation in one payload. Backed by a `BuildDashboard` action that composes the existing `ReconcileRevenue` action. 3 Pest tests.
+- **Vue frontend** *(optional #3)* — `/dashboard` page consumes the same `BuildDashboard` action via Inertia props. Renders a KPI stat row + reconciliation-variance grouped bar chart + per-location revenue bar chart via shadcn-vue chart components (Unovis-backed).
 
 ---
 
@@ -98,6 +106,14 @@ GET /api/revenue/reconcile ─► RevenueReconcileController
                           ReconcileRevenue (Action — single SQL with UNION ALL)
                               │
                               └── derive status (match / mismatch / missing_*) in PHP via bcmath
+
+GET /api/revenue/dashboard ──┐
+                             ▼
+GET /dashboard ──► DashboardController (Inertia) ──► BuildDashboard (Action)
+(auth+verified)                                       │
+                                                      ├── ReconcileRevenue::execute()  (reused)
+                                                      ├── dailyByLocation()            (new SQL)
+                                                      └── totalsFrom(reconciliation)   (bcmath)
 ```
 
 Five tables: `locations`, `machines`, `revenue_records`, `expected_totals`, `revenue_import_batches`. All FK-constrained. See the design doc §1 for the schema rationale.
@@ -154,6 +170,33 @@ No request body, no query params.
 
 All money values are decimal strings to avoid JS float precision drift. `status` values: `match`, `mismatch`, `missing_actual`, `missing_expected`.
 
+### `GET /api/revenue/dashboard`
+
+No request body, no query params. Returns the full operator dashboard payload — KPI totals, per-location daily aggregates, and the reconciliation rollup — in a single call.
+
+**Response (200):**
+
+```json
+{
+  "totals": {
+    "imported": "15502.00",
+    "expected": "15581.00",
+    "diff": "-79.00",
+    "mismatches_count": 1
+  },
+  "daily_by_location": [
+    { "location_id": "LOC-001", "report_date": "2026-03-01", "net_revenue": "1665.25" }
+  ],
+  "reconciliation": [
+    { "location_id": "LOC-002", "report_date": "2026-03-01",
+      "expected": "3100.00", "actual": "3021.00", "diff": "-79.00",
+      "status": "mismatch" }
+  ]
+}
+```
+
+The same payload is also passed as Inertia props to the `/dashboard` Vue page (`DashboardController` and `RevenueDashboardController` both call `BuildDashboard::execute()`).
+
 ---
 
 ## Key Design Decisions
@@ -178,9 +221,10 @@ The hash is a best-effort fast path — semantically equivalent payloads with re
 ## Testing
 
 ```bash
-php artisan test --compact            # all 62 tests
+php artisan test --compact            # all 65 tests
 php artisan test --compact --filter=ImportRevenueTest
 php artisan test --compact --filter=ReconcileRevenueTest
+php artisan test --compact --filter=RevenueDashboardTest
 ```
 
 **Idempotency coverage:**
@@ -202,13 +246,14 @@ Plus 14 unit tests covering model shape and relationships (`to_array`, BelongsTo
 
 In rough priority order:
 
-- **`GET /api/revenue/dashboard`** — date-range + location filters, daily rollups. Schema and Action shape are obvious; ~1 hour.
-- **OpenAPI spec for both endpoints** — declared in the assignment stack; cheap with `dedoc/scramble` or hand-rolled YAML.
+- **Dashboard date-range + location filters** — currently the dashboard returns everything. Query params on the JSON endpoint plus a small filter strip on the Vue page would scale to real-world datasets (a year of data across 1k locations is otherwise unreadable).
+- **OpenAPI spec for the three endpoints** — declared in the assignment stack; cheap with `dedoc/scramble` or hand-rolled YAML.
 - **Per-row error capture in the `errors` array** — currently FormRequest catches structural errors with a 422 and the transaction rolls back on system errors. The `errors` field is reserved for future per-row business rules (e.g., "negative net_revenue exceeds tolerance — quarantine").
-- **Machine relocation policy** — pick one of the three documented behaviors in design doc §1. Likely flag-and-quarantine.
+- **Machine relocation policy** — pick one of the three documented behaviors in design doc §1. Likely flag-and-quarantine. Also fixes the retroactive-attribution caveat in §3.
 - **Async import via queued job** — when payloads grow past ~5k rows / multi-second processing. Trigger documented in design doc §5.
 - **Reconciliation tolerance per tenant** — currently exact-match. Make `tolerance` configurable via `config/revenue.php`.
-- **Vue dashboard** — visualize reconciliation discrepancies. Would consume `GET /api/revenue/reconcile`.
+- **Drill-down on the dashboard** — click a mismatched bar → opens the underlying reconciliation row(s), then click further → opens the individual `revenue_records` summing to the actual. Trivial once filters land.
+- **Browser tests for the dashboard** — Pest 4 supports `visit()` / `click()`; currently the UI is verified manually. Worth ~30 min of test scaffolding.
 
 The full "defer until measurement justifies it" table is in design doc §5.
 
@@ -227,6 +272,8 @@ Per the assignment's expectation that AI is a force-multiplier, here's the hones
 **The `ImportRevenuePayload` Action:** Designed collaboratively. The three-layer flow, transaction boundary, and `wasChanged` discrimination logic emerged from back-and-forth. I caught and fixed two real bugs during implementation: (1) `date` cast serializing with `Y-m-d H:i:s` instead of the `Y-m-d` we passed, causing `updateOrCreate` lookups to miss on replay; (2) `RevenueImportBatch` and `Machine` missing `$fillable` (seeders bypass guards via `Model::unguard()` internally, masking the issue until the controller path exercised it).
 
 **The `ReconcileRevenue` Action:** SQL drafted by me from the design doc, AI proposed using `UNION ALL` to simulate `FULL OUTER JOIN` (SQLite lacks it natively). bcmath usage for money arithmetic was my decision per the "never floats" principle.
+
+**The `BuildDashboard` Action + Vue dashboard:** The decision to share one Action between the JSON endpoint (`/api/revenue/dashboard`) and the Inertia controller (`/dashboard`) was mine — avoids duplicate aggregation, gives reviewers two entry points to the same data. AI scaffolded the chart-related TypeScript boilerplate (Unovis `VisGroupedBar` props, `ChartConfig` shapes) and Vue template structure; I shaped the data flow (decimal strings on the wire, conversion to JS numbers only at chart-render time) and chose which two charts to include (reconciliation variance with the visible LOC-002 gap, total-by-location for size context).
 
 **Tests:** AI scaffolded with `php artisan make:test`. I wrote the assertions to match the assignment's contract — especially the LOC-002 `-79.00` exact-match assertion, which is the assignment's reason for shipping `expected_totals.json` with that intentional mismatch.
 

@@ -2,7 +2,7 @@
 
 This is the runnable script for the 25-minute code walkthrough portion of the technical review. The 20-minute design-doc walkthrough comes first (use `OpusDesignDocument.md`); the final 15 minutes are open Q&A with the cheat sheet at the bottom of this file.
 
-Total runtime: **~13 minutes**, leaving buffer for natural pauses, reviewer questions mid-demo, and the Q&A round.
+Total runtime: **~16 minutes**, leaving buffer for natural pauses, reviewer questions mid-demo, and the Q&A round.
 
 ---
 
@@ -10,18 +10,21 @@ Total runtime: **~13 minutes**, leaving buffer for natural pauses, reviewer ques
 
 - [ ] Herd is running (`herd status`); `http://vast.test` resolves.
 - [ ] Repo is clean: `git status` shows no uncommitted noise.
+- [ ] Production assets built: `npm run build`. (Avoids `vite dev` chunk-load surprises mid-demo.)
 - [ ] Open three terminal panes side-by-side:
   - **Pane A** — running commands (CWD: `/Users/christiannegron/Herd/vast`)
   - **Pane B** — `php artisan tinker` ready for DB inspection
   - **Pane C** — `tail -f storage/logs/laravel.log` (in case something goes sideways)
-- [ ] Pre-save the mutated payload for step 5:
+- [ ] Browser pre-warmed: `http://vast.test/login` open in a tab, logged in as `test@example.com` / `password`. `/dashboard` open in a second tab (will show empty state until step 6).
+- [ ] Pre-save the mutated payload for step 4:
   ```bash
   jq '.[0].cash_in = 9999.99' sample_import.json > /tmp/sample_modified.json
   ```
-- [ ] Editor open with three files in tabs:
+- [ ] Editor open with four files in tabs:
   1. `app/Actions/Revenue/ImportRevenuePayload.php`
   2. `app/Actions/Revenue/ReconcileRevenue.php`
-  3. `OpusDesignDocument.md`
+  3. `app/Actions/Revenue/BuildDashboard.php`
+  4. `OpusDesignDocument.md`
 - [ ] Have `expected_totals.json` and `sample_import.json` open in a viewer to reference the LOC-002 / -$79 fixture if asked.
 - [ ] Run the demo once end-to-end immediately before the call to verify nothing has rotted.
 
@@ -35,9 +38,9 @@ Open with credibility. This is the strongest single artifact in the submission.
 php artisan test --compact
 ```
 
-**Expected:** `Tests: 62 passed (239 assertions)`. ~1.5 seconds.
+**Expected:** `Tests: 65 passed (255 assertions)`. ~1.5 seconds.
 
-> **Say:** "Before I walk through the code, here's the test suite — 62 tests, all green. Four of them are the feature tests that prove the idempotency contract end-to-end against the assignment fixtures."
+> **Say:** "Before I walk through the code, here's the test suite — 65 tests, all green. Three of them are the feature tests that prove the idempotency contract end-to-end; four cover reconciliation against the fixture; three cover the dashboard aggregation."
 
 ---
 
@@ -165,7 +168,31 @@ curl -sS http://vast.test/api/revenue/reconcile | python3 -m json.tool
 
 ---
 
-## Step 6 — Code walkthrough (3 min)
+## Step 6 — Dashboard endpoint + visual UI (3 min)
+
+The visual closer. Switch to Pane A:
+
+```bash
+curl -sS http://vast.test/api/revenue/dashboard | python3 -m json.tool | head -15
+```
+
+**Expected:** the same reconciliation rows plus a `totals` block (`imported: 15502.00`, `expected: 15581.00`, `diff: -79.00`, `mismatches_count: 1`) and a `daily_by_location` rollup.
+
+> **Say:** "Same data, different shape. The JSON endpoint at `/api/revenue/dashboard` aggregates everything an operator wants on one screen — KPI totals, per-location revenue, full reconciliation — in a single call. One `BuildDashboard` action composes the reconcile action and adds two derived rollups."
+
+Now switch to the browser tab on `/dashboard` and **refresh** (you've already imported + seeded above, so the page now has data):
+
+> **Talking points (point at the screen):**
+>
+> - **KPI cards:** $15,502 imported, $15,581 expected, **-$79 variance in red**, 1 mismatch flagged amber. Same numbers we just saw via curl — Inertia passes them as props from the *same* `BuildDashboard` action.
+> - **Reconciliation Variance chart:** every (location, date) pair, actual vs expected side by side. Point at LOC-002 / 03-01 — visibly shorter blue bar than the orange expected. Hover for the tooltip.
+> - **Total Revenue by Location:** size-of-business view; LOC-004 is roughly 4x LOC-005.
+
+> **Say (closing):** "Two entry points to the same aggregation logic — JSON for machines, props for humans. Money stays as bcmath strings end-to-end; they get converted to JS numbers only at the chart-render boundary."
+
+---
+
+## Step 7 — Code walkthrough (3 min)
 
 Open `app/Actions/Revenue/ImportRevenuePayload.php` and walk the **three layers** structurally:
 
@@ -177,15 +204,17 @@ Open `app/Actions/Revenue/ImportRevenuePayload.php` and walk the **three layers*
 
 4. **Lines ~121-130 (Commit)** — "Counters and `COMMITTED` status get written atomically with the records. If anything in the loop throws, the batch row rolls back too — no orphan PENDING rows."
 
-Then briefly flash `app/Actions/Revenue/ReconcileRevenue.php`:
+Then briefly flash `app/Actions/Revenue/ReconcileRevenue.php` and `app/Actions/Revenue/BuildDashboard.php`:
 
 > **Say:** "Reconcile is intentionally smaller — one SQL query that left-joins expected against records via machines, unioned with a symmetric query for the inverse case (records with no expected baseline). Status derivation in PHP uses bcmath so the diff is a decimal string all the way to the wire."
+>
+> "And `BuildDashboard` composes that — constructor-injects `ReconcileRevenue`, adds two rollups (totals derived from the recon rows, daily-by-location via its own SQL). The JSON controller and the Inertia controller both call this one action — same data, two entry points."
 
 ---
 
-## Step 7 — Closing the demo (30 sec)
+## Step 8 — Closing the demo (30 sec)
 
-> **Say:** "That's the import contract, the idempotency proof, and the reconcile path. Tests cover the same flow programmatically — happy to run them again or step through any specific test if it'd help."
+> **Say:** "That's the import contract, the idempotency proof, the reconcile path, and the dashboard. Tests cover the same flows programmatically — happy to run them again or step through any specific test if it'd help."
 
 Pause for reviewer questions. Don't fill silence.
 

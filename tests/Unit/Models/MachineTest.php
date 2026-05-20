@@ -28,9 +28,14 @@ it('belongs to location', function () {
 it('has many revenue records', function () {
     $machine = Machine::factory()->create();
 
-    RevenueRecord::factory()->count(3)->create([
-        'machine_id' => $machine->id,
-    ]);
+    RevenueRecord::factory()
+        ->count(3)
+        ->sequence(
+            ['report_date' => '2026-03-01'],
+            ['report_date' => '2026-03-02'],
+            ['report_date' => '2026-03-03'],
+        )
+        ->create(['machine_id' => $machine->id]);
 
     expect($machine->revenueRecords)->toHaveCount(3);
 });
